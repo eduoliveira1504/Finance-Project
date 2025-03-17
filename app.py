@@ -4,10 +4,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Lista de empresas
 symbols = ["ALL", "VIV", "SAN", "NMS", "AMD"]
 
-# Funções para buscar dados
 def get_stock_data(symbol, period):
     stock = yq.Ticker(symbol)
     hist = stock.history(period=period).reset_index()
@@ -25,11 +23,9 @@ def get_previous_close(symbol):
     stock = yq.Ticker(symbol)
     return stock.price.get(symbol, {}).get("regularMarketPreviousClose", "N/A")
 
-# Configuração do Streamlit
 st.set_page_config(layout="wide", page_title="Dashboard Financeiro Interativo")
 st.title("📊 Dashboard Financeiro Interativo")
 
-# Sidebar
 st.sidebar.header("🔍 Configurações")
 
 time_periods = {"1 mês": "1mo", "3 meses": "3mo", "6 meses": "6mo", "1 ano": "1y", "5 anos": "5y"}
@@ -43,7 +39,6 @@ if graph_type == "Candlestick":
 else:
     selected_stocks = st.sidebar.multiselect("Selecione as empresas para comparação", symbols, default=symbols)
 
-# Exibir preços atuais
 price_data = {stock: get_current_price(stock) for stock in symbols}
 previous_close_data = {stock: get_previous_close(stock) for stock in symbols}
 
@@ -53,17 +48,16 @@ for stock in symbols:
     
     if isinstance(current_price, (int, float)) and isinstance(previous_close, (int, float)):
         if current_price > previous_close:
-            color = "#28a745"  # Verde
+            color = "#28a745"
         elif current_price < previous_close:
-            color = "#dc3545"  # Vermelho
+            color = "#dc3545"
         else:
-            color = "#ffc107"  # Amarelo
+            color = "#ffc107"
     else:
-        color = "#6c757d"  # Cinza
+        color = "#6c757d"
     
     st.sidebar.markdown(f"<span style='color: {color}; font-weight: bold;'>{stock}: ${current_price}</span>", unsafe_allow_html=True)
 
-# Exibir gráficos
 st.subheader("📉 Comparação de Preços de Fechamento")
 all_data = []
 for stock in selected_stocks:
@@ -93,7 +87,7 @@ if all_data:
             color_discrete_map=color_map
         )
     else:
-        stock = selected_stocks[0]  # Apenas um permitido
+        stock = selected_stocks[0]
         stock_data = df_combined[df_combined["Stock"] == stock]
         fig = go.Figure()
         fig.add_trace(go.Candlestick(
@@ -112,7 +106,6 @@ if all_data:
 else:
     st.warning("Não foi possível obter dados históricos.")
 
-# Exibir métricas financeiras
 st.subheader("📊 Resumo Financeiro das Empresas Selecionadas")
 cols = st.columns(len(selected_stocks))
 for col, stock in zip(cols, selected_stocks):
