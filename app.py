@@ -125,4 +125,4 @@ for col, stock in zip(cols, selected_stocks):
         else:
             st.warning(f"Não foi possível obter os dados financeiros de {stock}.")
 
-st.write("Desenvolvido com ❤️ usando YahooQuery e Streamlit")
+st.write("Feito por: Ana, Eduardo, Higor e Jhonatan\n BIG DATA FOR FINANCE PROJECT")
