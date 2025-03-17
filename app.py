@@ -125,4 +125,5 @@ for col, stock in zip(cols, selected_stocks):
         else:
             st.warning(f"Não foi possível obter os dados financeiros de {stock}.")
 
-st.write("Feito por: Ana, Eduardo, Higor e Jhonatan\n BIG DATA FOR FINANCE PROJECT")
+st.write("Feito por: Ana, Eduardo, Higor e Jhonatan")
+st.write("BIG DATA FOR FINANCE PROJECT")
