@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-symbols = ["CCOEY", "TCEHY", "UBSFY", "RBLX", "EA"]
+symbols = ["NTDOY", "TCEHY", "EA", "RBLX", "UBSFY"]
 
 def get_stock_data(symbol, period):
     stock = yq.Ticker(symbol)
