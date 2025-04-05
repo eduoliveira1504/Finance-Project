@@ -70,11 +70,11 @@ if all_data:
     df_combined = pd.concat(all_data, ignore_index=True)
     
     color_map = {
-        "AMD": "#FF0000",
-        "ALL": "#0000FF",
-        "VIV": "#800080",
-        "SAN": "#FFA500",
-        "NMS": "#008080"
+        "TTWO": "#003B70",
+        "TCEHY": "#007AC3",
+        "EA": "#EA001E",
+        "RBLX": "#FF4000",
+        "NCBDF": "#FF2B91"
     }
     
     if graph_type == "Linha":
