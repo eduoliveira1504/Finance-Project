@@ -2,3 +2,5 @@ streamlit
 yahooquery
 pandas
 plotly
+scikit-learn
+numpy
