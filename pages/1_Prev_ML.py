@@ -34,10 +34,12 @@ if df.empty or len(df) < 10:
     st.warning("Dados insuficientes para treinar o modelo. Tente outro período ou empresa.")
     st.stop()
 
+# ⬇️ CORREÇÃO DO ERRO DE TIMEZONE
 df = df[["date", "close"]].dropna()
-df["date"] = pd.to_datetime(df["date"])
+df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
 df["days"] = (df["date"] - df["date"].min()).dt.days
 
+# Treinamento do modelo
 X = df[["days"]]
 y = df["close"]
 
@@ -47,6 +49,7 @@ model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 
+# Previsão futura
 st.subheader("📅 Previsão Futura")
 dias_futuros = st.slider("Quantos dias você quer prever para frente?", 5, 30, 7)
 ultimo_dia = df["days"].max()
@@ -54,6 +57,7 @@ dias_para_prever = np.array(range(ultimo_dia + 1, ultimo_dia + dias_futuros + 1)
 previsoes_futuras = model.predict(dias_para_prever)
 datas_futuras = [df["date"].max() + pd.Timedelta(days=i) for i in range(1, dias_futuros + 1)]
 
+# Gráfico
 st.subheader("📉 Preço Real + Previsão Futura")
 
 fig = go.Figure()
@@ -83,6 +87,8 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig, use_container_width=True)
+
+# Métrica e tabela
 st.metric("Erro médio (RMSE)", f"${rmse:.2f}")
 
 previsao_df = pd.DataFrame({
