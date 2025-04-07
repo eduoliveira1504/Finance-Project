@@ -34,9 +34,13 @@ if df.empty or len(df) < 10:
     st.warning("Dados insuficientes para treinar o modelo. Tente outro período ou empresa.")
     st.stop()
 
-# ⬇️ Remoção de timezone das datas
+# Corrigir problema de timezone
 df = df[["date", "close"]].dropna()
-df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
+
+# 🔥 Correção segura para remover qualquer timezone, mesmo misturado
+df["date"] = pd.to_datetime(df["date"])
+df["date"] = df["date"].apply(lambda x: x.tz_localize(None) if x.tzinfo is not None else x)
+
 df["days"] = (df["date"] - df["date"].min()).dt.days
 
 # Treinamento do modelo
@@ -56,9 +60,10 @@ ultimo_dia = df["days"].max()
 dias_para_prever = np.array(range(ultimo_dia + 1, ultimo_dia + dias_futuros + 1)).reshape(-1, 1)
 previsoes_futuras = model.predict(dias_para_prever)
 
-# Datas futuras sem timezone
+# Gerar datas futuras e garantir que sejam tz-naive
 datas_futuras = [df["date"].max() + pd.Timedelta(days=i) for i in range(1, dias_futuros + 1)]
-datas_futuras = pd.to_datetime(datas_futuras).tz_localize(None)
+datas_futuras = pd.to_datetime(datas_futuras)
+datas_futuras = datas_futuras.tz_localize(None)
 
 # Gráfico
 st.subheader("📉 Preço Real + Previsão Futura")
@@ -91,9 +96,9 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True)
 
-# Tabela com tipos corretos
+# Tabela de previsão
 previsao_df = pd.DataFrame({
-    "Data": pd.to_datetime(datas_futuras),
+    "Data": datas_futuras,
     "Preço Previsto": previsoes_futuras.astype(float)
 })
 
