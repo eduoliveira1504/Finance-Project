@@ -1,92 +1,79 @@
 import streamlit as st
-import yahooquery as yq
 import pandas as pd
-import plotly.graph_objects as go
+import numpy as np
+from yahooquery import Ticker
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
-import numpy as np
-import warnings
+import matplotlib.pyplot as plt
+from datetime import timedelta
 
-warnings.filterwarnings("ignore", category=FutureWarning)
+st.set_page_config(page_title="Previsão de Ações", layout="wide")
+st.title("📈 Previsão de Ações com Regressão Linear")
 
-st.set_page_config(layout="wide")
-st.title("🤖 Previsão de Preços com Machine Learning")
+# Inputs do usuário
+symbol = st.text_input("Digite o código da ação (ex: PETR4.SA):", "PETR4.SA")
+period = st.selectbox("Selecione o período de dados históricos:", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=3)
+predict_days = st.slider("Dias futuros para prever:", 1, 30, 7)
 
-symbols = ["TTWO", "TCEHY", "EA", "RBLX", "NCBDF"]
+# Coleta de dados
+ticker = Ticker(symbol)
+data = ticker.history(period=period)
 
-selected_stock = st.selectbox("Selecione a empresa para previsão", symbols)
-
-periods = {"3 meses": "3mo", "6 meses": "6mo", "1 ano": "1y", "2 anos": "2y"}
-period_label = st.selectbox("Selecione o período histórico", list(periods.keys()), index=2)
-selected_period = periods[period_label]
-
-@st.cache_data
-def get_stock_history(symbol, period):
-    ticker = yq.Ticker(symbol)
-    df = ticker.history(period=period).reset_index()
-    df = df[df['symbol'] == symbol]
-    return df
-
-df = get_stock_history(selected_stock, selected_period)
-
-if df.empty or len(df) < 10:
-    st.warning("Dados insuficientes para treinar o modelo. Tente outro período ou empresa.")
+if data.empty:
+    st.warning("Não foi possível obter dados para esse papel. Verifique o código e tente novamente.")
     st.stop()
 
-df = df[["date", "close"]].dropna()
+# Resetar index caso necessário
+if isinstance(data.index, pd.MultiIndex):
+    data = data.reset_index()
+
+# Conversão de fuso horário (evitar erro de tz-aware vs tz-naive)
+if data['date'].dt.tz is not None:
+    data['date'] = data['date'].dt.tz_localize(None)
+
+# Selecionar apenas colunas necessárias
+df = data[["date", "close"]].dropna()
 df["date"] = pd.to_datetime(df["date"])
 df["days"] = (df["date"] - df["date"].min()).dt.days
 
+# Features e target
 X = df[["days"]]
 y = df["close"]
 
+# Verificar quantidade de dados
+if len(X) < 10:
+    st.warning("Dados insuficientes para treinar o modelo. Tente outro período ou papel.")
+    st.stop()
+
+# Separar dados e treinar modelo
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 model = LinearRegression()
 model.fit(X_train, y_train)
-y_pred = model.predict(X_test)
-rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 
-st.subheader("📅 Previsão Futura")
-dias_futuros = st.slider("Quantos dias você quer prever para frente?", 5, 30, 7)
-ultimo_dia = df["days"].max()
-dias_para_prever = np.array(range(ultimo_dia + 1, ultimo_dia + dias_futuros + 1)).reshape(-1, 1)
-previsoes_futuras = model.predict(dias_para_prever)
-datas_futuras = [df["date"].max() + pd.Timedelta(days=i) for i in range(1, dias_futuros + 1)]
+# Previsão futura
+last_day = df["days"].max()
+future_days = np.array(range(last_day + 1, last_day + predict_days + 1)).reshape(-1, 1)
+future_dates = [df["date"].max() + timedelta(days=i) for i in range(1, predict_days + 1)]
+future_preds = model.predict(future_days)
 
-st.subheader("📉 Preço Real + Previsão Futura")
+# Plotando o gráfico
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(df["date"], df["close"], label="Histórico")
+ax.plot(future_dates, future_preds, label="Previsão", color="orange")
+ax.set_xlabel("Data")
+ax.set_ylabel("Preço de Fechamento")
+ax.set_title(f"Preço da ação {symbol}")
+ax.legend()
+plt.xticks(rotation=45)
+plt.tight_layout()
 
-fig = go.Figure()
+# Exibir gráfico
+st.pyplot(fig)
 
-fig.add_trace(go.Scatter(
-    x=df["date"],
-    y=df["close"],
-    mode='lines+markers',
-    name='Preço Real',
-    line=dict(color='blue', width=2)
-))
+# Exibir dados futuros
+future_df = pd.DataFrame({"Data": future_dates, "Preço Previsto": future_preds})
+st.subheader("📊 Tabela de Previsão Futura")
+st.dataframe(future_df, hide_index=True, use_container_width=True)
 
-fig.add_trace(go.Scatter(
-    x=datas_futuras,
-    y=previsoes_futuras,
-    mode='lines+markers',
-    name='Previsão Futura',
-    line=dict(color='orange', width=2)
-))
-
-fig.update_layout(
-    title=f"Previsão de preços - {selected_stock}",
-    xaxis_title="Data",
-    yaxis_title="Preço",
-    legend_title="Legenda",
-    template="plotly_white"
-)
-
-st.plotly_chart(fig, use_container_width=True)
-st.metric("Erro médio (RMSE)", f"${rmse:.2f}")
-
-previsao_df = pd.DataFrame({
-    "Data": datas_futuras,
-    "Preço Previsto": previsoes_futuras
-})
-st.dataframe(previsao_df, use_container_width=True)
+# Observação
+st.caption("Esta previsão é baseada em um modelo de regressão linear simples e não deve ser usada para decisões financeiras.")
