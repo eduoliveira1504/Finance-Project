@@ -1,67 +1,99 @@
 import streamlit as st
+import yahooquery as yq
 import pandas as pd
-import numpy as np
+import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
-import matplotlib.pyplot as plt
-from yahooquery import Ticker
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+import numpy as np
+import warnings
 
-st.set_page_config(page_title="Previsão de Bolsa", layout="wide")
+warnings.filterwarnings("ignore", category=FutureWarning)
 
-st.title("📈 Previsão de Valores da Bolsa com Machine Learning")
+st.set_page_config(layout="wide")
+st.title("🤖 Previsão de Preços com Machine Learning")
 
-# ⬇️ Entrada do usuário
-ticker_symbol = st.text_input("Digite o código da ação (ex: PETR4.SA):", "PETR4.SA")
+symbols = ["TTWO", "TCEHY", "EA", "RBLX", "NCBDF"]
 
-# ⬇️ Coleta de dados com yahooquery
-ticker = Ticker(ticker_symbol)
-try:
-    df = ticker.history(period="1y").reset_index()
-except Exception as e:
-    st.error(f"Erro ao buscar dados: {e}")
+selected_stock = st.selectbox("Selecione a empresa para previsão", symbols)
+
+periods = {"3 meses": "3mo", "6 meses": "6mo", "1 ano": "1y", "2 anos": "2y"}
+period_label = st.selectbox("Selecione o período histórico", list(periods.keys()), index=2)
+selected_period = periods[period_label]
+
+@st.cache_data
+def get_stock_history(symbol, period):
+    ticker = yq.Ticker(symbol)
+    df = ticker.history(period=period).reset_index()
+    df = df[df['symbol'] == symbol]
+    return df
+
+df = get_stock_history(selected_stock, selected_period)
+
+if df.empty or len(df) < 10:
+    st.warning("Dados insuficientes para treinar o modelo. Tente outro período ou empresa.")
     st.stop()
 
-# ⬇️ Limpeza e preparação dos dados
+# Corrigir possíveis problemas de timezone misturado
 df = df[["date", "close"]].dropna()
-df["date"] = pd.to_datetime(df["date"], errors="coerce")
+df["date"] = pd.to_datetime(df["date"], utc=True)  # Força timezone
+df["date"] = df["date"].dt.tz_localize(None)       # Remove timezone
 
-# 🔧 Correção de timezone de forma segura
-df["date"] = df["date"].apply(lambda x: x.tz_convert(None) if hasattr(x, "tzinfo") and x.tzinfo else x)
-
-df = df.dropna(subset=["date"])  # Remove linhas que falharam a conversão
+# Criar coluna de dias desde o início
 df["days"] = (df["date"] - df["date"].min()).dt.days
 
-# ⬇️ Treinamento do modelo
+# Treinar modelo
 X = df[["days"]]
 y = df["close"]
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 model = LinearRegression()
-model.fit(X, y)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 
-# ⬇️ Previsão para os próximos 30 dias
-future_days = 30
-last_day = df["days"].max()
-future_X = pd.DataFrame({"days": np.arange(last_day + 1, last_day + future_days + 1)})
-future_preds = model.predict(future_X)
+# Previsão
+st.subheader("📅 Previsão Futura")
+dias_futuros = st.slider("Quantos dias você quer prever para frente?", 5, 30, 7)
+ultimo_dia = df["days"].max()
+dias_para_prever = np.array(range(ultimo_dia + 1, ultimo_dia + dias_futuros + 1)).reshape(-1, 1)
+previsoes_futuras = model.predict(dias_para_prever)
+datas_futuras = [df["date"].max() + pd.Timedelta(days=i) for i in range(1, dias_futuros + 1)]
 
-# ⬇️ Criação do DataFrame futuro
-future_dates = df["date"].max() + pd.to_timedelta(future_X["days"] - last_day, unit="D")
-future_df = pd.DataFrame({
-    "date": future_dates,
-    "close": future_preds
+# Plot com Plotly
+st.subheader("📉 Preço Real + Previsão Futura")
+fig = go.Figure()
+
+fig.add_trace(go.Scatter(
+    x=df["date"],
+    y=df["close"],
+    mode='lines+markers',
+    name='Preço Real',
+    line=dict(color='blue', width=2)
+))
+
+fig.add_trace(go.Scatter(
+    x=datas_futuras,
+    y=previsoes_futuras,
+    mode='lines+markers',
+    name='Previsão Futura',
+    line=dict(color='orange', width=2)
+))
+
+fig.update_layout(
+    title=f"Previsão de preços - {selected_stock}",
+    xaxis_title="Data",
+    yaxis_title="Preço",
+    legend_title="Legenda",
+    template="plotly_white"
+)
+
+st.plotly_chart(fig, use_container_width=True)
+st.metric("Erro médio (RMSE)", f"${rmse:.2f}")
+
+# Tabela com previsões
+previsao_df = pd.DataFrame({
+    "Data": datas_futuras,
+    "Preço Previsto": previsoes_futuras
 })
-
-# ⬇️ Combina dados reais com previsão
-combined_df = pd.concat([df[["date", "close"]], future_df], ignore_index=True)
-
-# ⬇️ Plot
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.plot(df["date"], df["close"], label="Histórico")
-ax.plot(future_df["date"], future_df["close"], linestyle="--", label="Previsão", color="orange")
-ax.set_title(f"Previsão de Fechamento para {ticker_symbol}")
-ax.set_xlabel("Data")
-ax.set_ylabel("Valor (R$)")
-ax.legend()
-st.pyplot(fig)
-
-# ⬇️ Exibir dados
-with st.expander("📊 Ver dados"):
-    st.dataframe(combined_df)
+st.dataframe(previsao_df, use_container_width=True)
