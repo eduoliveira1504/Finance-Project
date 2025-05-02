@@ -3,27 +3,22 @@ import yahooquery as yq
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import time
 
 symbols = ["TTWO", "TCEHY", "EA", "RBLX", "NCBDF"]
 
-@st.cache_data(ttl=600)  # Cache por 10 minutos
 def get_stock_data(symbol, period):
     stock = yq.Ticker(symbol)
     hist = stock.history(period=period).reset_index()
     return hist
 
-@st.cache_data(ttl=600)  # Cache por 10 minutos
 def get_financials(symbol):
     stock = yq.Ticker(symbol)
     return stock.summary_detail.get(symbol, {})
 
-@st.cache_data(ttl=600)  # Cache por 10 minutos
 def get_current_price(symbol):
     stock = yq.Ticker(symbol)
     return stock.price.get(symbol, {}).get("regularMarketPrice", "N/A")
 
-@st.cache_data(ttl=600)  # Cache por 10 minutos
 def get_previous_close(symbol):
     stock = yq.Ticker(symbol)
     return stock.price.get(symbol, {}).get("regularMarketPreviousClose", "N/A")
@@ -44,14 +39,8 @@ if graph_type == "Candlestick":
 else:
     selected_stocks = st.sidebar.multiselect("Selecione as empresas para comparação", symbols, default=symbols)
 
-# Adicionando o atraso para espaçar as requisições
-price_data = {}
-previous_close_data = {}
-
-for stock in symbols:
-    price_data[stock] = get_current_price(stock)
-    previous_close_data[stock] = get_previous_close(stock)
-    time.sleep(2)  # Atraso de 2 segundos entre requisições para evitar erro 429
+price_data = {stock: get_current_price(stock) for stock in symbols}
+previous_close_data = {stock: get_previous_close(stock) for stock in symbols}
 
 for stock in symbols:
     current_price = price_data.get(stock, "N/A")
@@ -76,7 +65,6 @@ for stock in selected_stocks:
     if not data.empty:
         data["Stock"] = stock
         all_data.append(data)
-    time.sleep(2)  # Atraso de 2 segundos entre requisições para evitar erro 429
 
 if all_data:
     df_combined = pd.concat(all_data, ignore_index=True)
